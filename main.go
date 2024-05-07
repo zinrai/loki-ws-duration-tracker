@@ -58,26 +58,36 @@ func getTailLogsFromLoki(podInfo PodInfo, lokiAddress, LokiWebsocketAddress stri
 	}
 	wsConfig.Header.Set("X-Scope-OrgID", podInfo.Namespace)
 
-	ws, err := websocket.DialConfig(wsConfig)
-	if err != nil {
-		return err
-	}
-	defer ws.Close()
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		ws, err := websocket.DialConfig(wsConfig)
+		if err != nil {
+			log.Printf("Error connecting to Loki: %v. Retrying in 2 seconds...", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		defer ws.Close()
 
-	var lokiResp LokiQueryTailResponse
-	err = websocket.JSON.Receive(ws, &lokiResp)
-	if err != nil {
-		return err
+		var lokiResp LokiQueryTailResponse
+		err = websocket.JSON.Receive(ws, &lokiResp)
+		if err != nil {
+			log.Printf("Error receiving response from Loki: %v. Retrying in 2 seconds...", err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		if len(lokiResp.Streams) > 0 {
+			now := time.Now()
+			timeDiff := now.Sub(podInfo.StartTime)
+			log.Printf("First log line for pod %s in namespace %s: (Time difference: %s)", podInfo.PodName, podInfo.Namespace, timeDiff)
+			return nil
+		}
+
+		log.Printf("No logs found for pod %s. Retrying in 2 seconds...", podInfo.PodName)
+		time.Sleep(2 * time.Second)
 	}
 
-	if len(lokiResp.Streams) > 0 {
-		now := time.Now()
-		timeDiff := now.Sub(podInfo.StartTime)
-		log.Printf("First log line for pod %s in namespace %s: (Time difference: %s)", podInfo.PodName, podInfo.Namespace, timeDiff)
-		return nil
-	}
-
-	return fmt.Errorf("no logs found for pod %s", podInfo.PodName)
+	return fmt.Errorf("failed to get logs for pod %s after 1 minute", podInfo.PodName)
 }
 
 func main() {
