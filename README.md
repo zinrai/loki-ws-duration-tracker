@@ -62,7 +62,6 @@ EOF
 ```bash
 $ go run main.go < input.json
 2023/05/08 15:00:00 First log line for pod my-task-run in namespace my-namespace: (Time difference: 4.239230187s)
-...
 ```
 
 If an error occurs during log retrieval or no logs are found within 1 minute, the program will print an error message and exit.
@@ -74,6 +73,12 @@ $ go run main.go < input.json
 
 ## Example
 
+Example when used in combination with [tekton-task-run-creator](https://github.com/zinrai/tekton-task-run-creator) :
+
+```bash
+../tekton-task-run-creator/tekton-task-run-creator | jq -c -R 'fromjson? | select(type == "object")' | ./loki-ws-duration-tracker
+2023/05/08 15:00:00 First log line for pod my-task-run in namespace my-namespace: (Time difference: 4.239230187s)
+```
 
 ## License
 
